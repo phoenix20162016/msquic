@@ -195,16 +195,6 @@ typedef struct QUIC_RX_PACKET QUIC_RX_PACKET;
 #define QUIC_MAX_CRYPTO_BATCH_COUNT             8
 
 //
-// The maximum number of received packets that may be queued on a single
-// connection. When this limit is reached, any additional packets are dropped.
-//
-#ifdef _KERNEL_MODE
-#define QUIC_MAX_RECEIVE_QUEUE_COUNT            1024
-#else
-#define QUIC_MAX_RECEIVE_QUEUE_COUNT            8192
-#endif
-
-//
 // The maximum number of received packets that may be processed in a single
 // flush operation.
 //
@@ -297,7 +287,7 @@ CXPLAT_STATIC_ASSERT(QUIC_INITIAL_PACKET_LENGTH >= QUIC_MIN_INITIAL_PACKET_LENGT
 //
 // The number of milliseconds that must elapse before a connection is
 // considered disconnected; that is, the time a connection waits for an
-// expected acknowledgement for packets it has sent before it considers the
+// expected acknowledgment for packets it has sent before it considers the
 // path dead.
 //
 #define QUIC_DEFAULT_DISCONNECT_TIMEOUT         16000   // 16 seconds, in ms
@@ -533,6 +523,11 @@ CXPLAT_STATIC_ASSERT(
 #define QUIC_DEFAULT_ONE_WAY_DELAY_ENABLED           FALSE
 
 //
+// The default settings for allowing Network Statistics event to be raised.
+//
+#define QUIC_DEFAULT_NET_STATS_EVENT_ENABLED         FALSE
+
+//
 // The number of rounds in Cubic Slow Start to sample RTT.
 //
 #define QUIC_HYSTART_DEFAULT_N_SAMPLING             8
@@ -637,6 +632,7 @@ CXPLAT_STATIC_ASSERT(
 #define QUIC_SETTING_ENCRYPTION_OFFLOAD_ALLOWED     "EncryptionOffloadAllowed"
 #define QUIC_SETTING_RELIABLE_RESET_ENABLED         "ReliableResetEnabled"
 #define QUIC_SETTING_ONE_WAY_DELAY_ENABLED          "OneWayDelayEnabled"
+#define QUIC_SETTING_NET_STATS_EVENT_ENABLED        "NetStatsEventEnabled"
 
 #define QUIC_SETTING_INITIAL_WINDOW_PACKETS         "InitialWindowPackets"
 #define QUIC_SETTING_SEND_IDLE_TIMEOUT_MS           "SendIdleTimeoutMs"
@@ -652,6 +648,9 @@ CXPLAT_STATIC_ASSERT(
 #define QUIC_SETTING_MAX_TLS_CLIENT_SEND_BUFFER     "TlsClientMaxSendBuffer"
 #define QUIC_SETTING_MAX_TLS_SERVER_SEND_BUFFER     "TlsServerMaxSendBuffer"
 #define QUIC_SETTING_STREAM_FC_WINDOW_SIZE          "StreamRecvWindowDefault"
+#define QUIC_SETTING_STREAM_FC_BIDI_LOCAL_WINDOW_SIZE "StreamRecvWindowBidiLocalDefault"
+#define QUIC_SETTING_STREAM_FC_BIDI_REMOTE_WINDOW_SIZE "StreamRecvWindowBidiRemoteDefault"
+#define QUIC_SETTING_STREAM_FC_UNIDI_WINDOW_SIZE    "StreamRecvWindowUnidiDefault"
 #define QUIC_SETTING_STREAM_RECV_BUFFER_SIZE        "StreamRecvBufferDefault"
 #define QUIC_SETTING_CONN_FLOW_CONTROL_WINDOW       "ConnFlowControlWindow"
 

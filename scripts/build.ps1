@@ -236,6 +236,8 @@ $ArtifactsDir = $BuildConfig.ArtifactsDir
 if ($Generator -eq "") {
     if (!$IsWindows) {
         $Generator = "Unix Makefiles"
+    } else {
+        $Generator = "Visual Studio 17 2022"
     }
 }
 
@@ -393,6 +395,12 @@ function CMake-Generate {
             switch ($Arch) {
                 "arm64" { $Arguments += " -DCMAKE_CXX_COMPILER_TARGET=aarch64-linux-gnu -DCMAKE_C_COMPILER_TARGET=aarch64-linux-gnu -DCMAKE_TARGET_ARCHITECTURE=arm64" }
                 "arm" { $Arguments += " -DCMAKE_CXX_COMPILER_TARGET=arm-linux-gnueabihf  -DCMAKE_C_COMPILER_TARGET=arm-linux-gnueabihf -DCMAKE_TARGET_ARCHITECTURE=arm" }
+            }
+
+            # to build with pkg-config
+            switch ($Arch) {
+                "arm"   { $env:PKG_CONFIG_PATH="$SysRoot/usr/lib/arm-linux-gnueabihf/pkgconfig" }
+                "arm64" { $env:PKG_CONFIG_PATH="$SysRoot/usr/lib/aarch64-linux-gnu/pkgconfig" }
             }
        }
     }
