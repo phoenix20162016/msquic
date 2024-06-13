@@ -96,8 +96,13 @@ public:
             MsQuic = new(std::nothrow) MsQuicApi();
             ASSERT_TRUE(QUIC_SUCCEEDED(MsQuic->GetInitStatus()));
 #if defined(QUIC_API_ENABLE_PREVIEW_FEATURES)
+            QUIC_EXECUTION_CONFIG Config = {QUIC_EXECUTION_CONFIG_FLAG_NONE, 0, 0, {0}};
             if (UseQTIP) {
-                QUIC_EXECUTION_CONFIG Config = {QUIC_EXECUTION_CONFIG_FLAG_QTIP, 10000, 0, {0}};
+                Config.PollingIdleTimeoutUs = 10000;
+                Config.Flags |= QUIC_EXECUTION_CONFIG_FLAG_QTIP;
+            }
+            Config.Flags |= UseDuoNic ? QUIC_EXECUTION_CONFIG_FLAG_XDP : QUIC_EXECUTION_CONFIG_FLAG_NONE;
+            if (Config.Flags != QUIC_EXECUTION_CONFIG_FLAG_NONE) {
                 ASSERT_TRUE(QUIC_SUCCEEDED(
                     MsQuic->SetParam(
                         nullptr,
@@ -1586,7 +1591,7 @@ TEST_P(WithFamilyArgs, RebindAddr) {
 
 TEST_P(WithFamilyArgs, RebindDatapathAddr) {
 #if defined(QUIC_API_ENABLE_PREVIEW_FEATURES)
-    if (UseQTIP) {
+    if (UseQTIP || !UseDuoNic) {
         //
         // NAT rebind doesn't make sense for TCP and QTIP.
         //
@@ -1665,6 +1670,15 @@ TEST_P(WithHandshakeArgs10, HandshakeSpecificLossPatterns) {
     }
 }
 #endif // QUIC_TEST_DATAPATH_HOOKS_ENABLED
+
+TEST_P(WithHandshakeArgs11, ShutdownDuringHandshake) {
+    TestLoggerT<ParamType> Logger("QuicTestShutdownDuringHandshake", GetParam());
+    if (TestingKernelMode) {
+        ASSERT_TRUE(DriverClient.Run(IOCTL_QUIC_RUN_HANDSHAKE_SHUTDOWN, GetParam().ClientShutdown ? TRUE : FALSE));
+    } else {
+        QuicTestShutdownDuringHandshake(GetParam().ClientShutdown);
+    }
+}
 
 TEST_P(WithSendArgs1, Send) {
     TestLoggerT<ParamType> Logger("QuicTestConnectAndPing", GetParam());
@@ -2112,6 +2126,17 @@ TEST(Misc, NthAllocFail) {
 #endif // QUIC_TEST_OPENSSL_FLAGS
 #endif // QUIC_TEST_ALLOC_FAILURES_ENABLED
 
+#if QUIC_TEST_DATAPATH_HOOKS_ENABLED
+TEST(Misc, NthPacketDrop) {
+    TestLogger Logger("NthPacketDrop");
+    if (TestingKernelMode) {
+        ASSERT_TRUE(DriverClient.Run(IOCTL_QUIC_RUN_NTH_PACKET_DROP));
+    } else {
+        QuicTestNthPacketDrop();
+    }
+}
+#endif // QUIC_TEST_DATAPATH_HOOKS_ENABLED
+
 TEST(Misc, StreamPriority) {
     TestLogger Logger("StreamPriority");
     if (TestingKernelMode) {
@@ -2420,6 +2445,11 @@ INSTANTIATE_TEST_SUITE_P(
     WithHandshakeArgs10,
     testing::ValuesIn(HandshakeArgs10::Generate()));
 #endif
+
+INSTANTIATE_TEST_SUITE_P(
+    Handshake,
+    WithHandshakeArgs11,
+    testing::ValuesIn(HandshakeArgs11::Generate()));
 
 INSTANTIATE_TEST_SUITE_P(
     AppData,

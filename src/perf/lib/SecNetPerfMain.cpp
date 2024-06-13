@@ -151,12 +151,17 @@ QuicMainStart(
         SetConfig = true;
     }
 
+    if (IoMode && IsValue(IoMode, "xdp")) {
+        Config->Flags |= QUIC_EXECUTION_CONFIG_FLAG_XDP;
+        SetConfig = true;
+    }
+
     const char* CpuStr;
     if ((CpuStr = GetValue(argc, argv, "cpu")) != nullptr) {
         SetConfig = true;
         if (strtol(CpuStr, nullptr, 10) == -1) {
-            for (uint16_t i = 0; i < CxPlatProcCount() && Config->ProcessorCount < 256; ++i) {
-                Config->ProcessorList[Config->ProcessorCount++] = i;
+            for (uint32_t i = 0; i < CxPlatProcCount() && Config->ProcessorCount < 256; ++i) {
+                Config->ProcessorList[Config->ProcessorCount++] = (uint16_t)i;
             }
         } else {
             do {

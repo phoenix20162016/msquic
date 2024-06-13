@@ -90,6 +90,7 @@ option(QUIC_STATIC_LINK_PARTIAL_CRT "Statically links the compiler-specific port
 option(QUIC_UWP_BUILD "Build for UWP" OFF)
 option(QUIC_GAMECORE_BUILD "Build for GameCore" OFF)
 option(QUIC_PGO "Enables profile guided optimizations" OFF)
+option(QUIC_LINUX_XDP_ENABLED "Enables XDP support" OFF)
 option(QUIC_SOURCE_LINK "Enables source linking on MSVC" ON)
 option(QUIC_EMBED_GIT_HASH "Embed git commit hash in the binary" ON)
 option(QUIC_PDBALTPATH "Enable PDBALTPATH setting on MSVC" ON)
@@ -434,13 +435,13 @@ if (NOT MSVC AND NOT APPLE AND NOT ANDROID)
     endif()
 endif()
 
-if(WIN32)
-    if (CMAKE_GENERATOR_PLATFORM STREQUAL "")
-        string(TOLOWER ${CMAKE_SYSTEM_PROCESSOR} SYSTEM_PROCESSOR)
-    else()
-        string(TOLOWER ${CMAKE_GENERATOR_PLATFORM} SYSTEM_PROCESSOR)
-    endif()
+if (CMAKE_GENERATOR_PLATFORM STREQUAL "")
+string(TOLOWER ${CMAKE_SYSTEM_PROCESSOR} SYSTEM_PROCESSOR)
+else()
+string(TOLOWER ${CMAKE_GENERATOR_PLATFORM} SYSTEM_PROCESSOR)
+endif()
 
+if(WIN32)
     # Generate the MsQuicEtw header file.
     file(MAKE_DIRECTORY ${QUIC_BUILD_DIR}/inc)
 

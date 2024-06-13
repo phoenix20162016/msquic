@@ -370,15 +370,15 @@ QuicTestConnectAndPing(
     _In_ bool FifoScheduling
     )
 {
-    MsQuicRegistration Registration(NULL, QUIC_EXECUTION_PROFILE_TYPE_MAX_THROUGHPUT, true);
-    TEST_TRUE(Registration.IsValid());
-
     const uint32_t TimeoutMs = EstimateTimeoutMs(Length) * StreamBurstCount;
     const uint16_t TotalStreamCount = (uint16_t)(StreamCount * StreamBurstCount);
     QUIC_ADDRESS_FAMILY QuicAddrFamily = (Family == 4) ? QUIC_ADDRESS_FAMILY_INET : QUIC_ADDRESS_FAMILY_INET6;
 
     PingStats ServerStats(Length, ConnectionCount, TotalStreamCount, FifoScheduling, UnidirectionalStreams, ServerInitiatedStreams, ClientZeroRtt && !ServerRejectZeroRtt, false, QUIC_STATUS_SUCCESS);
     PingStats ClientStats(Length, ConnectionCount, TotalStreamCount, FifoScheduling, UnidirectionalStreams, ServerInitiatedStreams, ClientZeroRtt && !ServerRejectZeroRtt);
+
+    MsQuicRegistration Registration(NULL, QUIC_EXECUTION_PROFILE_TYPE_MAX_THROUGHPUT, true);
+    TEST_TRUE(Registration.IsValid());
 
     if (ServerRejectZeroRtt) {
         //
@@ -2921,6 +2921,97 @@ QuicTestNthAllocFail(
         RecvContext.ServerStreamRecv.WaitTimeout(10);
         RecvContext.ServerStreamShutdown.WaitTimeout(10);
     }
+}
+
+struct NthPacketDropTestContext {
+    bool Failure {false};
+    CxPlatEvent ServerStreamShutdown;
+    static QUIC_STATUS StreamCallback(_In_ MsQuicStream* Stream, _In_opt_ void* Context, _Inout_ QUIC_STREAM_EVENT* Event) {
+        auto TestContext = (NthPacketDropTestContext*)Context;
+        if (Event->Type == QUIC_STREAM_EVENT_RECEIVE) {
+            auto Offset = Event->RECEIVE.AbsoluteOffset;
+            for (uint32_t i = 0; i < Event->RECEIVE.BufferCount; ++i) {
+                for (uint32_t j = 0; j < Event->RECEIVE.Buffers[i].Length; ++j) {
+                    if (Event->RECEIVE.Buffers[i].Buffer[j] != (uint8_t)(Offset + j)) {
+                        TestContext->Failure = true;
+                        TEST_FAILURE("Buffer Corrupted!");
+                        Stream->Shutdown(1); // Kill the transfer immediately
+                    }
+                }
+                Offset += Event->RECEIVE.Buffers[i].Length;
+            }
+        } else if (Event->Type == QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE) {
+            TestContext->ServerStreamShutdown.Set();
+        }
+        return QUIC_STATUS_SUCCESS;
+    }
+
+    static QUIC_STATUS ConnCallback(_In_ MsQuicConnection*, _In_opt_ void* Context, _Inout_ QUIC_CONNECTION_EVENT* Event) {
+        if (Event->Type == QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED) {
+            new(std::nothrow) MsQuicStream(Event->PEER_STREAM_STARTED.Stream, CleanUpAutoDelete, StreamCallback, Context);
+        }
+        return QUIC_STATUS_SUCCESS;
+    }
+};
+
+//#define LARGE_DROP_TEST 1 // Can only run locally because of the long runtime
+
+void
+QuicTestNthPacketDrop(
+    )
+{
+    uint64_t StartTime = CxPlatTimeUs64();
+
+    MsQuicRegistration Registration(true);
+    TEST_QUIC_SUCCEEDED(Registration.GetInitStatus());
+
+    MsQuicConfiguration ServerConfiguration(Registration, "MsQuicTest", MsQuicSettings().SetPeerUnidiStreamCount(1), ServerSelfSignedCredConfig);
+    TEST_QUIC_SUCCEEDED(ServerConfiguration.GetInitStatus());
+
+    MsQuicConfiguration ClientConfiguration(Registration, "MsQuicTest", MsQuicCredentialConfig());
+    TEST_QUIC_SUCCEEDED(ClientConfiguration.GetInitStatus());
+
+    NthPacketDropTestContext RecvContext {};
+    MsQuicAutoAcceptListener Listener(Registration, ServerConfiguration, NthPacketDropTestContext::ConnCallback, &RecvContext);
+    TEST_QUIC_SUCCEEDED(Listener.GetInitStatus());
+    TEST_QUIC_SUCCEEDED(Listener.Start("MsQuicTest"));
+    QuicAddr ServerLocalAddr;
+    TEST_QUIC_SUCCEEDED(Listener.GetLocalAddr(ServerLocalAddr));
+
+    MsQuicConnection Connection(Registration);
+    TEST_QUIC_SUCCEEDED(Connection.GetInitStatus());
+    TEST_QUIC_SUCCEEDED(Connection.Start(ClientConfiguration, ServerLocalAddr.GetFamily(), QUIC_TEST_LOOPBACK_FOR_AF(ServerLocalAddr.GetFamily()), ServerLocalAddr.GetPort()));
+
+#if LARGE_DROP_TEST
+    const uint32_t BufferLength = 0x800000;
+    const uint64_t TimeOutS = 60 * 60; // 1 hour
+#else
+    const uint32_t BufferLength = 0x200000;
+    const uint64_t TimeOutS = 50; // All test cases need to complete in less than 60 seconds
+#endif
+    uint8_t* RawBuffer = new(std::nothrow) uint8_t[BufferLength];
+    for (uint32_t i = 0; i < BufferLength; ++i) {
+        RawBuffer[i] = (uint8_t)i;
+    }
+    QUIC_BUFFER Buffer { BufferLength, RawBuffer };
+
+    CxPlatSleep(100); // Quiesce
+
+    bool StopRunning = false;
+    for (uint32_t i = 0; !StopRunning; ++i) {
+        NthLossHelper LossHelper(i);
+        MsQuicStream Stream(Connection, QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL);
+        CONTINUE_ON_FAIL(Stream.GetInitStatus());
+
+        CONTINUE_ON_FAIL(Stream.Send(&Buffer, 1, QUIC_SEND_FLAG_START | QUIC_SEND_FLAG_FIN));
+        TEST_TRUE(RecvContext.ServerStreamShutdown.WaitTimeout(2000));
+        if (RecvContext.Failure || !LossHelper.Dropped() ||
+            CxPlatTimeDiff64(StartTime, CxPlatTimeUs64()) > S_TO_US(TimeOutS)) {
+            StopRunning = true;
+        }
+    }
+
+    delete[] RawBuffer;
 }
 
 struct StreamPriorityTestContext {

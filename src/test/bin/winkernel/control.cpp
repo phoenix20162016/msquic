@@ -518,6 +518,8 @@ size_t QUIC_IOCTL_BUFFER_SIZES[] =
     0,
     sizeof(QUIC_RUN_CANCEL_ON_LOSS_PARAMS),
     sizeof(uint32_t),
+    sizeof(BOOLEAN),
+    0,
 };
 
 CXPLAT_STATIC_ASSERT(
@@ -557,6 +559,7 @@ typedef union {
     BOOLEAN Bidirectional;
     QUIC_RUN_FEATURE_NEGOTIATION FeatureNegotiationParams;
     QUIC_HANDSHAKE_LOSS_PARAMS HandshakeLossParams;
+    BOOLEAN ClientShutdown;
 } QUIC_IOCTL_PARAMS;
 
 #define QuicTestCtlRun(X) \
@@ -1432,13 +1435,22 @@ QuicTestCtlEvtIoDeviceControl(
         CXPLAT_FRE_ASSERT(Params != nullptr);
         QuicTestCtlRun(QuicCancelOnLossSend(Params->Params7.DropPackets));
         break;
-        
+
 #ifdef QUIC_API_ENABLE_PREVIEW_FEATURES
     case IOCTL_QUIC_RUN_VALIDATE_NET_STATS_CONN_EVENT:
         CXPLAT_FRE_ASSERT(Params != nullptr);
         QuicTestCtlRun(QuicTestValidateNetStatsConnEvent(Params->Test));
         break;
 #endif
+
+    case IOCTL_QUIC_RUN_HANDSHAKE_SHUTDOWN:
+        CXPLAT_FRE_ASSERT(Params != nullptr);
+        QuicTestCtlRun(QuicTestShutdownDuringHandshake(Params->ClientShutdown));
+        break;
+
+    case IOCTL_QUIC_RUN_NTH_PACKET_DROP:
+        QuicTestCtlRun(QuicTestNthPacketDrop());
+        break;
 
     default:
         Status = STATUS_NOT_IMPLEMENTED;

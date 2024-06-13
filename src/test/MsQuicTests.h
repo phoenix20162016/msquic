@@ -273,6 +273,11 @@ QuicTestHandshakeSpecificLossPatterns(
     _In_ QUIC_CONGESTION_CONTROL_ALGORITHM CcAlgo
     );
 
+void
+QuicTestShutdownDuringHandshake(
+    _In_ bool ClientShutdown
+    );
+
 //
 // Negative Handshake Tests
 //
@@ -531,6 +536,10 @@ QuicTestSlowReceive(
 
 void
 QuicTestNthAllocFail(
+    );
+
+void
+QuicTestNthPacketDrop(
     );
 
 void
@@ -1278,4 +1287,11 @@ typedef struct {
     QUIC_CTL_CODE(119, METHOD_BUFFERED, FILE_WRITE_DATA)
     // uint32_t - Test
 
-#define QUIC_MAX_IOCTL_FUNC_CODE 119
+#define IOCTL_QUIC_RUN_HANDSHAKE_SHUTDOWN \
+    QUIC_CTL_CODE(120, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // BOOLEAN - ClientShutdown
+
+#define IOCTL_QUIC_RUN_NTH_PACKET_DROP \
+    QUIC_CTL_CODE(121, METHOD_BUFFERED, FILE_WRITE_DATA)
+
+#define QUIC_MAX_IOCTL_FUNC_CODE 121

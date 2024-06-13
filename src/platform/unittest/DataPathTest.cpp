@@ -9,6 +9,8 @@ Abstract:
 
 --*/
 
+#define QUIC_API_ENABLE_PREVIEW_FEATURES 1
+
 #include "main.h"
 #include "quic_datapath.h"
 
@@ -425,6 +427,7 @@ QuicAddr DataPathTest::UnspecIPv4;
 QuicAddr DataPathTest::UnspecIPv6;
 
 struct CxPlatDataPath {
+    QUIC_EXECUTION_CONFIG DefaultExecutionConfig { QUIC_EXECUTION_CONFIG_FLAG_XDP, 0, 0, {0} };
     CXPLAT_DATAPATH* Datapath {nullptr};
     QUIC_STATUS InitStatus;
     CxPlatDataPath(
@@ -439,7 +442,7 @@ struct CxPlatDataPath {
                 ClientRecvContextLength,
                 UdpCallbacks,
                 TcpCallbacks,
-                Config,
+                Config ? Config : &DefaultExecutionConfig,
                 &Datapath);
     }
     ~CxPlatDataPath() noexcept {
@@ -929,7 +932,8 @@ TEST_P(DataPathTest, UdpShareClientSocket)
     CxPlatDataPath Datapath(&UdpRecvCallbacks);
     VERIFY_QUIC_SUCCESS(Datapath.GetInitStatus());
     ASSERT_NE(nullptr, Datapath.Datapath);
-    if (!(Datapath.GetSupportedFeatures() & CXPLAT_DATAPATH_FEATURE_LOCAL_PORT_SHARING)) {
+    // TODO: Linux XDP (duonic) to support port sharing
+    if (!(Datapath.GetSupportedFeatures() & CXPLAT_DATAPATH_FEATURE_LOCAL_PORT_SHARING) || UseDuoNic) {
         std::cout << "SKIP: Sharing Feature Unsupported" << std::endl;
         return;
     }
